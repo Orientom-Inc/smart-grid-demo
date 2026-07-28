@@ -1,0 +1,725 @@
+<title>GRIDOPS — Smart Grid Operations Console (mock)</title>
+<style>
+  :root{
+    --ground:#0A0E14; --panel:#101720; --panel2:#141C26; --inset:#0C1219;
+    --line:#1F2A38; --line2:#2A3848;
+    --ink:#C9D6E2; --muted:#63788C; --faint:#41546A;
+    --ok:#37C883; --warn:#D9A43B; --crit:#E25B4E;
+    --nuc:#9678C8; --coal:#AA6828; --ccgt:#4E9BD8; --gt:#CE7538;
+    --wind:#35A47F; --solar:#B8891C; --stor:#D06AA5;
+    --fc:#4E9BD8;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{color-scheme:dark}
+  body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.45}
+  button,input,select{font:inherit;color:inherit}
+  .num,td.n,.tile b,.strip b{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+  /* ---------- login ---------- */
+  #login{position:fixed;inset:0;background:var(--ground);display:flex;align-items:center;justify-content:center;z-index:50}
+  #login .box{width:340px;border:1px solid var(--line2);background:var(--panel);padding:28px 30px 24px}
+  #login .logo{font-family:var(--mono);font-size:22px;letter-spacing:.35em;color:var(--ok);margin-bottom:2px}
+  #login .sub{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted);margin-bottom:24px}
+  #login label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--muted);margin:14px 0 4px}
+  #login input{width:100%;background:var(--inset);border:1px solid var(--line);padding:8px 10px;font-family:var(--mono)}
+  #login input:focus-visible{outline:1px solid var(--ok);outline-offset:0}
+  #login button{width:100%;margin-top:22px;background:var(--ok);color:#04160C;border:0;padding:9px;font-family:var(--mono);letter-spacing:.2em;font-weight:700;cursor:pointer}
+  #login button:hover{filter:brightness(1.1)}
+  #login .foot{margin-top:18px;font-size:11px;color:var(--faint)}
+
+  /* ---------- shell ---------- */
+  #app{display:none;min-height:100vh;flex-direction:column}
+  #app.on{display:flex}
+  header{display:flex;align-items:center;gap:20px;background:var(--panel);border-bottom:1px solid var(--line2);padding:0 16px;height:44px;flex-wrap:wrap}
+  .brand{font-family:var(--mono);letter-spacing:.3em;color:var(--ok);font-weight:700}
+  .brand small{color:var(--muted);letter-spacing:.15em;font-weight:400;margin-left:10px}
+  .strip{display:flex;gap:18px;margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--muted);flex-wrap:wrap}
+  .strip span{white-space:nowrap}
+  .strip b{color:var(--ink);font-weight:600;margin-left:5px}
+  .strip b.ok{color:var(--ok)} .strip b.warn{color:var(--warn)} .strip b.crit{color:var(--crit)}
+  .clock{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+  nav{display:flex;background:var(--panel);border-bottom:1px solid var(--line2);padding:0 8px}
+  nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);
+    font-family:var(--mono);font-size:11px;letter-spacing:.16em;padding:9px 16px;cursor:pointer}
+  nav button:hover{color:var(--ink)}
+  nav button.on{color:var(--ok);border-bottom-color:var(--ok)}
+  nav button:focus-visible{outline:1px solid var(--ok);outline-offset:-2px}
+  main{flex:1;padding:12px;max-width:1500px;width:100%;margin:0 auto}
+  .tab{display:none}.tab.on{display:block}
+  footer{padding:8px 16px;border-top:1px solid var(--line);color:var(--faint);font-family:var(--mono);font-size:10px;letter-spacing:.08em}
+
+  /* ---------- panels / layout ---------- */
+  .row{display:grid;gap:12px;margin-bottom:12px}
+  .g2{grid-template-columns:1fr 1fr}
+  .g31{grid-template-columns:2.2fr 1fr}
+  .g13{grid-template-columns:1fr 2.2fr}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g5{grid-template-columns:repeat(5,1fr)}
+  @media(max-width:1000px){.g2,.g31,.g13{grid-template-columns:1fr}.g4,.g5{grid-template-columns:repeat(2,1fr)}}
+  .panel{background:var(--panel);border:1px solid var(--line)}
+  .ph{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line);
+     font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--muted)}
+  .ph .sp{margin-left:auto;display:flex;gap:8px;align-items:center;letter-spacing:0}
+  .pb{padding:12px}
+  .pb.tight{padding:6px 0 2px}
+
+  /* ---------- tables ---------- */
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--muted);text-align:left;
+     padding:5px 10px;border-bottom:1px solid var(--line);font-weight:500}
+  td{padding:4px 10px;border-bottom:1px solid var(--line);color:var(--ink)}
+  td.n,th.n{text-align:right}
+  tr:hover td{background:var(--panel2)}
+  .dim{color:var(--muted)}
+
+  /* ---------- pills & status ---------- */
+  .pill{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;padding:1px 7px;border:1px solid}
+  .pill.ok{color:var(--ok);border-color:var(--ok)}
+  .pill.warn{color:var(--warn);border-color:var(--warn)}
+  .pill.crit{color:var(--crit);border-color:var(--crit)}
+  .pill.off{color:var(--faint);border-color:var(--faint)}
+
+  /* ---------- tiles ---------- */
+  .tile{background:var(--panel);border:1px solid var(--line);padding:10px 14px}
+  .tile small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--muted);margin-bottom:5px}
+  .tile b{display:block;font-size:19px;font-weight:600}
+  .tile i{font-style:normal;font-size:11px;color:var(--muted)}
+  .tile .up{color:var(--ok)} .tile .dn{color:var(--crit)}
+
+  /* ---------- controls ---------- */
+  .ctl{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+  .fld small{display:block;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--muted);margin-bottom:3px}
+  .fld select,.fld input{background:var(--inset);border:1px solid var(--line);padding:6px 8px;font-family:var(--mono);font-size:12px;min-width:110px}
+  .fld select:focus-visible,.fld input:focus-visible{outline:1px solid var(--ok)}
+  .btn{background:var(--ok);color:#04160C;border:0;padding:7px 18px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;font-weight:700;cursor:pointer}
+  .btn:hover{filter:brightness(1.1)}
+  .btn.ghost{background:none;border:1px solid var(--line2);color:var(--muted)}
+  .btn.ghost:hover{color:var(--ink);border-color:var(--muted)}
+  .btn:disabled{background:var(--panel2);color:var(--faint);cursor:not-allowed;border:1px solid var(--line)}
+  .btn:focus-visible{outline:1px solid var(--ink);outline-offset:1px}
+  .toggle{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;color:var(--faint);letter-spacing:.1em}
+  .toggle .tk{width:26px;height:14px;border:1px solid var(--line2);position:relative;background:var(--inset)}
+  .toggle .tk::after{content:"";position:absolute;left:1px;top:1px;width:10px;height:10px;background:var(--faint)}
+
+  /* ---------- charts ---------- */
+  .chart{width:100%;display:block}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:6px 12px 10px;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.06em}
+  .legend i{display:inline-block;width:9px;height:9px;margin-right:5px;vertical-align:-1px}
+  .legend .ln i{height:2px;vertical-align:2px}
+  #tip{position:fixed;pointer-events:none;display:none;background:var(--panel2);border:1px solid var(--line2);
+    padding:7px 10px;font-family:var(--mono);font-size:11px;z-index:99;min-width:150px;box-shadow:0 4px 16px #0008}
+  #tip .t{color:var(--muted);font-size:10px;letter-spacing:.1em;margin-bottom:4px}
+  #tip .r{display:flex;justify-content:space-between;gap:14px}
+  #tip .r i{width:8px;height:8px;display:inline-block;margin-right:5px}
+  #tip .r b{font-weight:500}
+
+  /* ---------- commitment grid ---------- */
+  .cmwrap{overflow-x:auto;padding:10px 12px}
+  .cmgrid{display:grid;grid-template-columns:110px repeat(24,minmax(16px,1fr)) 52px;gap:2px;min-width:640px;font-family:var(--mono)}
+  .cmgrid .lbl{font-size:10px;color:var(--muted);align-self:center;letter-spacing:.06em;white-space:nowrap}
+  .cmgrid .hh{font-size:9px;color:var(--faint);text-align:center}
+  .cmgrid .tot{font-size:10px;color:var(--muted);text-align:right;align-self:center}
+  .cm{height:16px;background:var(--inset);border:1px solid var(--line)}
+  .cm.on{background:color-mix(in srgb,var(--ok) 26%,var(--inset));border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+  .cm.st{background:color-mix(in srgb,var(--ok) 55%,var(--inset));border-color:var(--ok)}
+  .cm:hover{outline:1px solid var(--ink)}
+
+  /* ---------- bars ---------- */
+  .bars .brow{display:grid;grid-template-columns:64px 1fr 76px;gap:10px;align-items:center;padding:4px 12px;font-family:var(--mono);font-size:11px}
+  .bars .track{height:8px;background:var(--inset);border:1px solid var(--line);position:relative}
+  .bars .fill{position:absolute;inset:0;right:auto;background:var(--ccgt)}
+  .bars .fill.warn{background:var(--warn)}
+  .bars .lim{position:absolute;top:-2px;bottom:-2px;width:1px;background:var(--faint)}
+  .bars .v{text-align:right;color:var(--muted)}
+
+  /* ---------- log ---------- */
+  .log{font-family:var(--mono);font-size:11px;color:var(--muted);padding:10px 12px;white-space:pre-wrap;max-height:190px;overflow-y:auto;line-height:1.6}
+  .log .hl{color:var(--ok)}
+
+  /* ---------- alarms ---------- */
+  .alarm{display:grid;grid-template-columns:56px 60px 1fr;gap:10px;padding:6px 12px;border-bottom:1px solid var(--line);font-size:12px;align-items:baseline}
+  .alarm time{font-family:var(--mono);font-size:10px;color:var(--muted)}
+
+  /* one-line diagram */
+  .flowdash{stroke-dasharray:5 7;animation:flow 1.4s linear infinite}
+  @keyframes flow{to{stroke-dashoffset:-12}}
+  @media (prefers-reduced-motion:reduce){.flowdash{animation:none}}
+
+  .note{font-size:11px;color:var(--faint);padding:8px 12px}
+  .roadcard{border:1px solid var(--line);background:var(--panel2);padding:12px 14px}
+  .roadcard h4{font-family:var(--mono);font-size:11px;letter-spacing:.12em;font-weight:600;margin-bottom:6px}
+  .roadcard p{font-size:12px;color:var(--muted)}
+  .roadcard .pill{margin-left:8px}
+</style>
+
+<div id="tip"></div>
+
+<!-- ============ LOGIN ============ -->
+<div id="login">
+  <form class="box" id="loginForm">
+    <div class="logo">GRIDOPS</div>
+    <div class="sub">UNIT COMMITMENT · DISPATCH · FORECAST</div>
+    <label for="op">OPERATOR ID</label>
+    <input id="op" autocomplete="username" spellcheck="false" value="op.renaud">
+    <label for="pw">PASSWORD</label>
+    <input id="pw" type="password" autocomplete="current-password" value="demo">
+    <button type="submit">SIGN IN</button>
+    <div class="foot">Demo build — any credentials sign in. Session stays on this machine.</div>
+  </form>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <header>
+    <div class="brand">GRIDOPS<small>ATLAS-9 TEST SYSTEM · 50 Hz</small></div>
+    <div class="strip">
+      <span>FREQ<b class="ok" id="sFreq">50.012 Hz</b></span>
+      <span>ACE<b id="sAce">−12.4 MW</b></span>
+      <span>LOAD<b>2,847 MW</b></span>
+      <span>λ<b>$46.20</b></span>
+      <span>SPIN RSV<b class="warn">312 / 300 MW</b></span>
+      <span>ALARMS<b class="warn">2</b></span>
+    </div>
+    <div class="clock" id="clock">—</div>
+  </header>
+
+  <nav id="tabs">
+    <button data-tab="grid" class="on">GRID</button>
+    <button data-tab="data">DATA</button>
+    <button data-tab="forecast">FORECAST</button>
+    <button data-tab="uc">UC / DISPATCH</button>
+    <button data-tab="scen">SCENARIOS</button>
+    <button data-tab="ctl">SIGNALS / CONTROL</button>
+  </nav>
+
+  <main>
+    <!-- ============ GRID ============ -->
+    <section class="tab on" id="tab-grid">
+      <div class="row g31">
+        <div class="panel">
+          <div class="ph">ONE-LINE DIAGRAM — ATLAS-9 · COPPERPLATE VIEW (DC-OPF LATER)
+            <span class="sp"><span class="pill ok">ENERGIZED</span><span class="pill warn">L2 92%</span></span>
+          </div>
+          <div class="pb" id="oneline"></div>
+        </div>
+        <div>
+          <div class="panel" style="margin-bottom:12px">
+            <div class="ph">LINE LOADING</div>
+            <div class="bars pb tight" id="lineload"></div>
+          </div>
+          <div class="panel">
+            <div class="ph">ALARMS <span class="sp"><span class="pill warn">2 ACTIVE</span></span></div>
+            <div class="alarm"><time>14:02Z</time><span class="pill warn">WARN</span><span>Line L2 loading 92% of thermal limit (368/400 MVA)</span></div>
+            <div class="alarm"><time>13:41Z</time><span class="pill warn">WARN</span><span>RTU heartbeat B7 restored after 46 s gap — telemetry backfilled</span></div>
+            <div class="alarm"><time>11:20Z</time><span class="pill off">CLR</span><span class="dim">GT-2 start sequence retry — completed normally</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="ph">TELEMETRY BLOTTER — SCADA (1 s SCAN, MOCK VALUES FROZEN)</div>
+        <div style="overflow-x:auto"><table id="telem"></table></div>
+      </div>
+    </section>
+
+    <!-- ============ DATA ============ -->
+    <section class="tab" id="tab-data">
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph">QUERY — TIME SERIES STORE (REDPANDA LOG → DUCKDB/PARQUET SNAPSHOTS)</div>
+        <div class="pb ctl">
+          <div class="fld"><small>FROM (UTC)</small><input value="2026-07-20T00:00Z"></div>
+          <div class="fld"><small>TO (UTC)</small><input value="2026-07-27T00:00Z"></div>
+          <div class="fld"><small>SITE / BUS</small><select><option>B5 (load center)</option><option>B1</option><option>WF-A</option><option>PV-1</option><option>*</option></select></div>
+          <div class="fld"><small>SIGNAL</small><select><option>load</option><option>gen</option><option>price.da</option><option>weather.nwp</option><option>soc</option></select></div>
+          <div class="fld"><small>KIND</small><select><option>measured</option><option>forecast</option><option>setpoint</option></select></div>
+          <div class="fld"><small>TAGS</small><input value="source:entso-e" style="min-width:150px"></div>
+          <button class="btn" type="button" onclick="flashQuery()">RUN QUERY</button>
+        </div>
+        <div class="note">Stored in UTC; market local time + DST policy carried per series (fall-back doubles an hour — as-of queries resolve on the UTC axis).</div>
+      </div>
+      <div class="row g31">
+        <div class="panel">
+          <div class="ph">RESULT — load · B5 · measured · 168 h <span class="sp" id="qstat"><span class="pill ok">4 SERIES · 12 ms</span></span></div>
+          <div class="pb"><div id="dataChart"></div></div>
+          <div style="overflow-x:auto"><table id="qtable"></table></div>
+        </div>
+        <div>
+          <div class="panel" style="margin-bottom:12px">
+            <div class="ph">INGEST LOADERS</div>
+            <div style="overflow-x:auto"><table id="ingest"></table></div>
+          </div>
+          <div class="panel">
+            <div class="ph">SYNTHETIC GENERATOR</div>
+            <div class="pb ctl">
+              <div class="fld"><small>PROFILE</small><select><option>load: daily+weekly+temp</option><option>wind: weibull+diurnal</option><option>solar: clear-sky idx</option><option>fleet: cost curves</option></select></div>
+              <div class="fld"><small>SEED</small><input value="42" style="min-width:60px;width:60px"></div>
+              <button class="btn ghost" type="button" onclick="synthLog()">GENERATE</button>
+            </div>
+            <div class="log" id="synth">ready — profiles fitted on 2025 ENTSO-E + NREL samples
+feasibility filters: non-negative load · capacity-consistent · reserve-feasible
+last run: 17,520 rows → store tag=synthetic (split &lt; 30 MB/file)</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FORECAST ============ -->
+    <section class="tab" id="tab-fc">
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph">MODEL / RUN</div>
+        <div class="pb ctl">
+          <div class="fld"><small>MODEL</small><select id="fcModel"><option>XGBoost (tabular DA)</option><option>TemporalNet (torch LSTM)</option></select></div>
+          <div class="fld"><small>HORIZON</small><select><option>day-ahead (24 h)</option><option>intraday (6 h)</option></select></div>
+          <div class="fld"><small>TARGET</small><select><option>system load</option><option>WF-A wind</option><option>PV-1 solar</option></select></div>
+          <div class="fld"><small>ISSUE</small><input value="2026-07-27 09:00Z D-1"></div>
+          <button class="btn" type="button" onclick="flashFc()">PREDICT</button>
+          <span class="note">features: NWP weather @ issue time (no realized-weather leakage) · calendar · lags · site meta</span>
+        </div>
+      </div>
+      <div class="row g4">
+        <div class="tile"><small>MAPE (D-1)</small><b>2.8 %</b><i class="up">naïve 6.4 %</i></div>
+        <div class="tile"><small>SKILL vs SEASONAL-NAÏVE</small><b>0.56</b><i>1 − MAE/MAE₀</i></div>
+        <div class="tile"><small>PINBALL (q10–q90)</small><b>18.3</b><i>CRPS 21.7</i></div>
+        <div class="tile"><small>P10–P90 COVERAGE</small><b>88.7 %</b><i>target 80 — σ sizes reserve</i></div>
+      </div>
+      <div class="row g31" style="margin-top:12px">
+        <div class="panel">
+          <div class="ph">DAY-AHEAD LOAD — PREDICTED vs ACTUAL · 2026-07-27</div>
+          <div class="pb"><div id="fcChart"></div></div>
+          <div class="legend">
+            <span class="ln"><i style="background:var(--ink)"></i>ACTUAL</span>
+            <span class="ln"><i style="background:var(--fc)"></i>FORECAST P50</span>
+            <span><i style="background:color-mix(in srgb,var(--fc) 22%,transparent)"></i>P10–P90</span>
+            <span class="ln"><i style="background:var(--faint)"></i>SEASONAL-NAÏVE</span>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="ph">WALK-FORWARD BACKTEST — 8 FOLDS, EXPANDING WINDOW</div>
+          <div class="pb"><div id="btChart"></div></div>
+          <div class="legend">
+            <span><i style="background:var(--fc)"></i>MODEL MAPE %</span>
+            <span><i style="background:var(--faint)"></i>NAÏVE MAPE %</span>
+          </div>
+          <div class="note">No shuffling — folds advance in time. Fold 5–6 span the March DST week.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ UC / DISPATCH ============ -->
+    <section class="tab" id="tab-uc">
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph">RUN SETUP — MILP UNIT COMMITMENT (HiGHS)</div>
+        <div class="pb ctl">
+          <div class="fld"><small>DAY</small><input value="2026-07-27"></div>
+          <div class="fld"><small>FORECAST</small><select><option>XGBoost DA · P50</option><option>TemporalNet DA · P50</option><option>naïve baseline</option></select></div>
+          <div class="fld"><small>RESERVE RULE</small><select><option>N-1 largest unit + σ</option><option>fixed 300 MW</option></select></div>
+          <div class="fld"><small>NETWORK</small><select><option>copperplate</option><option disabled>DC-OPF (later)</option></select></div>
+          <div class="fld"><small>ENGINE</small><select><option>HiGHS</option><option>CBC</option><option disabled>Gurobi (unlicensed)</option></select></div>
+          <button class="btn" id="runUc" type="button">RUN UC</button>
+          <span class="toggle" title="Toy QUBO/QAOA demonstrator — ../quantum-optimizer, TBC"><span class="tk"></span>QUANTUM (TBC)</span>
+        </div>
+      </div>
+      <div class="row g5">
+        <div class="tile"><small>TOTAL COST</small><b>$1.284 M</b><i>fuel+no-load+starts</i></div>
+        <div class="tile"><small>SYSTEM λ AVG / PK</small><b>46.2 / 96.0</b><i>$/MWh · balance dual</i></div>
+        <div class="tile"><small>STARTUPS</small><b>4</b><i>CCGT-2, GT-1, GT-2, BESS</i></div>
+        <div class="tile"><small>UNSERVED ENERGY</small><b class="up">0.0 MWh</b><i>@ VOLL $9,000</i></div>
+        <div class="tile"><small>RESERVE SHORTFALL</small><b class="dn">1 h</b><i>h19 · −8 MW soft</i></div>
+      </div>
+      <div class="row g31" style="margin-top:12px">
+        <div class="panel">
+          <div class="ph">DISPATCH STACK — MW BY FUEL
+            <span class="sp"><button class="btn ghost" id="ucTblBtn" type="button">TABLE</button></span>
+          </div>
+          <div class="pb" id="ucChartWrap"><div id="ucChart"></div></div>
+          <div style="overflow-x:auto;display:none" id="ucTable"></div>
+          <div class="legend" id="ucLegend"></div>
+          <div class="ph" style="border-top:1px solid var(--line)">SYSTEM MARGINAL PRICE λ — $/MWh (COMMITMENT FIXED, DISPATCH LP DUAL)</div>
+          <div class="pb"><div id="lmbChart"></div></div>
+        </div>
+        <div>
+          <div class="panel" style="margin-bottom:12px">
+            <div class="ph">COMMITMENT — ON/OFF BY HOUR <span class="sp"><span class="pill ok">OPTIMAL · GAP 0.08%</span></span></div>
+            <div class="cmwrap"><div class="cmgrid" id="cmgrid"></div></div>
+            <div class="note">▣ start hour · min-up/min-down and ramps respected · BESS row shows discharge hours</div>
+          </div>
+          <div class="panel" style="margin-bottom:12px">
+            <div class="ph">CONSTRAINT / SHORTFALL REPORT</div>
+            <div style="overflow-x:auto"><table id="constr"></table></div>
+          </div>
+          <div class="panel">
+            <div class="ph">SOLVER LOG</div>
+            <div class="log" id="uclog"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SCENARIOS ============ -->
+    <section class="tab" id="tab-scen">
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph">SCENARIO BUILDER</div>
+        <div class="pb ctl">
+          <div class="fld"><small>LOAD LEVEL</small><select><option>base × 1.00</option><option>heat wave × 1.08</option><option>mild × 0.94</option></select></div>
+          <div class="fld"><small>OUTAGE (N-1)</small><select><option>none</option><option>NUC-1 out</option><option>CCGT-1 out</option><option>line L2 out</option></select></div>
+          <div class="fld"><small>GAS PRICE</small><select><option>base $6.1/MMBtu</option><option>+50 %</option><option>−25 %</option></select></div>
+          <div class="fld"><small>RENEWABLES</small><select><option>base fleet</option><option>wind × 2</option><option>solar × 2</option></select></div>
+          <div class="fld"><small>DAYS</small><input value="2026-07-01 → 07-27" style="min-width:150px"></div>
+          <button class="btn" type="button" onclick="flashScen()">RUN BATCH</button>
+          <span class="note" id="scenStat">last batch: 5 scenarios × 27 days · 135 UC solves · 41 s</span>
+        </div>
+      </div>
+      <div class="panel" style="margin-bottom:12px">
+        <div class="ph">RESULTS — 27-DAY TOTALS PER SCENARIO</div>
+        <div style="overflow-x:auto"><table id="scenTable"></table></div>
+      </div>
+      <div class="row g2">
+        <div class="panel">
+          <div class="ph">PRODUCTION COST — $M / 27 DAYS</div>
+          <div class="pb"><div id="scCost"></div></div>
+        </div>
+        <div class="panel">
+          <div class="ph">CO₂ EMISSIONS — kt / 27 DAYS</div>
+          <div class="pb"><div id="scEmis"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTROL ============ -->
+    <section class="tab" id="tab-ctl">
+      <div class="row g31">
+        <div class="panel">
+          <div class="ph">SYSTEM FREQUENCY — LAST 10 MIN (AGC ~1 s LOOP RIDES ON FIXED COMMITMENT)</div>
+          <div class="pb"><div id="freqChart"></div></div>
+          <div class="note">Real-time economic dispatch / AGC runs each second against the day-ahead commitment; setpoints and measured response stream through the grid emulator.</div>
+        </div>
+        <div class="panel">
+          <div class="ph">AGC STATUS</div>
+          <div class="pb" style="display:grid;gap:8px">
+            <div class="tile" style="border:0;padding:6px 0"><small>MODE</small><b style="font-size:14px">TIE-LINE BIAS <span class="pill ok">AUTO</span></b></div>
+            <div class="tile" style="border:0;padding:6px 0"><small>REGULATION</small><b style="font-size:14px">±42 MW <i>assigned CCGT-1/2</i></b></div>
+            <div class="tile" style="border:0;padding:6px 0"><small>ACE (CPS1 98.2)</small><b style="font-size:14px">−12.4 MW</b></div>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="grid-template-columns:repeat(3,1fr)">
+        <div class="roadcard"><h4>DRL MICROGRID EMS<span class="pill off">PHASE 3</span></h4>
+          <p>DDPG/SAC agent dispatches the microgrid (BESS, flexible load) against price + forecast signals. Trains offline in the emulator; inference binary behind the gateway.</p></div>
+        <div class="roadcard"><h4>EV / V2G FREQUENCY SUPPORT<span class="pill off">PHASE 3</span></h4>
+          <p>Aggregated EV fleets bid regulation; intelligent frequency control per the Tightiz World EV Journal line. Needs the ~1 s loop hardened first.</p></div>
+        <div class="roadcard"><h4>GRID COMMS ADAPTERS<span class="pill off">PHASE 4</span></h4>
+          <p>IEC 61850 / DNP3 ingestion for real substations; this build speaks only to the synthetic emulator.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>GRIDOPS mock v0.1 — concept screens only · no solver, model, or store attached · all numbers illustrative</footer>
+</div>
+
+<script>
+"use strict";
+/* ================= helpers ================= */
+const $=q=>document.querySelector(q);
+const NS="http://www.w3.org/2000/svg";
+function sv(tag,at,parent){const e=document.createElementNS(NS,tag);for(const k in at)e.setAttribute(k,at[k]);if(parent)parent.appendChild(e);return e}
+function fmt(v,d=0){return v.toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+const tip=$("#tip");
+function showTip(html,x,y){tip.innerHTML=html;tip.style.display="block";
+  const r=tip.getBoundingClientRect();
+  tip.style.left=Math.min(x+14,innerWidth-r.width-8)+"px";
+  tip.style.top=Math.min(y+14,innerHeight-r.height-8)+"px"}
+function hideTip(){tip.style.display="none"}
+
+/* deterministic pseudo-noise */
+function prand(i){const x=Math.sin(i*127.1+311.7)*43758.5453;return x-Math.floor(x)}
+
+/* ================= mock data ================= */
+const H=[...Array(24).keys()];
+const load=[1980,1905,1860,1840,1855,1930,2120,2380,2560,2640,2690,2720,2700,2660,2620,2610,2660,2780,2920,2950,2860,2640,2360,2120];
+const solar=[0,0,0,0,0,0,10,60,130,195,240,262,268,255,225,180,120,55,10,0,0,0,0,0];
+const wind=[255,262,270,265,250,235,215,190,170,155,150,148,155,165,175,190,205,215,220,205,215,230,240,250];
+const nuc=H.map(()=>880);
+const coal=[180,180,180,180,180,220,300,360,390,400,400,400,400,400,400,400,400,400,400,400,380,320,260,200];
+const gt1=H.map(h=>({17:60,18:120,19:150,20:110,21:40})[h]||0);
+const gt2=H.map(h=>({18:40,19:95,20:30})[h]||0);
+const chg=H.map(h=>(h>=11&&h<=14)?80:0);
+const dis=H.map(h=>({18:90,19:100,20:70})[h]||0);
+const stor=dis;
+let ccgt1=[],ccgt2=[];
+H.forEach(h=>{
+  let r=load[h]+chg[h]-(nuc[h]+coal[h]+wind[h]+solar[h]+gt1[h]+gt2[h]+dis[h]);
+  let c2=r>560?Math.min(520,Math.max(140,Math.round(r*520/1120))):0;
+  let c1=Math.min(600,Math.max(180,r-c2));
+  ccgt1.push(c1);ccgt2.push(c2);
+});
+const lambda=[31,30,29,29,30,33,38,42,44,45,46,46,45,44,43,43,45,58,86,96,72,46,39,34];
+const fcP50=load.map((v,i)=>Math.round(v+(prand(i)-0.5)*60));
+const actual=load.map((v,i)=>Math.round(v+(prand(i+40)-0.5)*90));
+const bandW=H.map(h=>40+(h>=17&&h<=21?70:h>=7?35:10));
+const naive=load.map((v,i)=>Math.round(v*0.94+((i+23)%24===19?120:0)+(prand(i+80)-0.5)*30));
+
+const FUELS=[
+  {k:"NUCLEAR",c:"var(--nuc)",a:nuc},{k:"COAL",c:"var(--coal)",a:coal},
+  {k:"CCGT",c:"var(--ccgt)",a:H.map(h=>ccgt1[h]+ccgt2[h])},{k:"GT PEAK",c:"var(--gt)",a:H.map(h=>gt1[h]+gt2[h])},
+  {k:"WIND",c:"var(--wind)",a:wind},{k:"SOLAR",c:"var(--solar)",a:solar},{k:"STORAGE",c:"var(--stor)",a:stor}];
+
+/* ================= chart engine ================= */
+function baseChart(sel,W,Hh,yMin,yMax,opts={}){
+  const P={l:46,r:10,t:8,b:18,...opts.pad};
+  const host=$(sel);host.innerHTML="";
+  const svg=sv("svg",{viewBox:`0 0 ${W} ${Hh}`,class:"chart","aria-label":opts.label||"chart"},host);
+  const pw=W-P.l-P.r,ph=Hh-P.t-P.b;
+  const x=opts.band?(i=>P.l+pw*(i+0.5)/opts.n):(i=>P.l+pw*i/(opts.n-1||23));
+  const y=v=>P.t+ph*(1-(v-yMin)/(yMax-yMin));
+  const ticks=opts.ticks||4;
+  for(let t=0;t<=ticks;t++){const v=yMin+(yMax-yMin)*t/ticks,yy=y(v);
+    sv("line",{x1:P.l,x2:W-P.r,y1:yy,y2:yy,stroke:"var(--line)","stroke-width":1},svg);
+    sv("text",{x:P.l-6,y:yy+3,fill:"var(--muted)","font-size":9,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent=fmt(v,opts.dec||0);}
+  (opts.xlabels||[0,6,12,18,23]).forEach(i=>{
+    sv("text",{x:x(i),y:Hh-4,fill:"var(--faint)","font-size":9,"text-anchor":"middle","font-family":"var(--mono)"},svg)
+      .textContent=(opts.xfmt||(i=>String(i).padStart(2,"0")+":00"))(i);});
+  return{svg,x,y,P,pw,ph,W,H:Hh,band:!!opts.band};
+}
+function pathOf(c,arr){return arr.map((v,i)=>(i?"L":"M")+c.x(i).toFixed(1)+" "+c.y(v).toFixed(1)).join(" ")}
+function hoverLayer(c,n,fn){
+  const r=sv("rect",{x:c.P.l,y:c.P.t,width:c.pw,height:c.ph,fill:"transparent"},c.svg);
+  const cross=sv("line",{y1:c.P.t,y2:c.P.t+c.ph,stroke:"var(--faint)","stroke-width":1,opacity:0},c.svg);
+  r.addEventListener("mousemove",e=>{
+    const b=c.svg.getBoundingClientRect();
+    const mx=(e.clientX-b.left)*c.W/b.width;
+    let i=c.band?Math.floor((mx-c.P.l)/c.pw*n):Math.round((mx-c.P.l)/c.pw*(n-1));i=Math.max(0,Math.min(n-1,i));
+    cross.setAttribute("x1",c.x(i));cross.setAttribute("x2",c.x(i));cross.setAttribute("opacity",1);
+    showTip(fn(i),e.clientX,e.clientY);});
+  r.addEventListener("mouseleave",()=>{hideTip();cross.setAttribute("opacity",0)});
+}
+const row=(c,l,v)=>`<div class="r"><span><i style="background:${c}"></i>${l}</span><b>${v}</b></div>`;
+
+/* ================= GRID tab ================= */
+function oneline(){
+  const host=$("#oneline");host.innerHTML="";
+  const svg=sv("svg",{viewBox:"0 0 900 470",class:"chart","aria-label":"one-line diagram"},host);
+  const buses={B1:[70,90,230],B2:[620,90,800],B3:[70,255,190],B4:[660,255,820],B5:[330,255,560],B6:[140,400,320],B7:[560,400,740]};
+  const L=(a,b,mw,pct)=>{
+    const [ax1,ay,ax2]=buses[a],[bx1,by,bx2]=buses[b];
+    const x1=(ax1+ax2)/2,x2=(bx1+bx2)/2;
+    const warn=pct>=90;
+    const pts=`${x1},${ay} ${x1},${(ay+by)/2} ${x2},${(ay+by)/2} ${x2},${by}`;
+    sv("polyline",{points:pts,fill:"none",stroke:warn?"var(--warn)":"var(--line2)","stroke-width":2},svg);
+    sv("polyline",{points:pts,fill:"none",stroke:warn?"var(--warn)":"var(--ok)","stroke-width":1,class:"flowdash",opacity:.8},svg);
+    sv("text",{x:(x1+x2)/2,y:(ay+by)/2-6,fill:warn?"var(--warn)":"var(--muted)","font-size":10,"text-anchor":"middle","font-family":"var(--mono)"},svg)
+      .textContent=`${mw} MW·${pct}%`;
+  };
+  L("B1","B5",612,74);L("B2","B5",368,92);L("B3","B5",210,52);L("B4","B7",240,60);L("B5","B6",305,58);L("B5","B7",290,55);L("B1","B3",95,24);L("B2","B4",120,30);
+  for(const[id,[x1,y,x2]]of Object.entries(buses)){
+    sv("line",{x1,x2,y1:y,y2:y,stroke:"var(--ink)","stroke-width":4},svg);
+    sv("text",{x:x1-6,y:y+4,fill:"var(--muted)","font-size":11,"text-anchor":"end","font-family":"var(--mono)"},svg).textContent=id;
+  }
+  const gen=(bus,dx,label,sym,col)=>{
+    const[x1,y,x2]=buses[bus];const x=x1+dx;
+    sv("line",{x1:x,x2:x,y1:y-38,y2:y,stroke:col,"stroke-width":1.5},svg);
+    sv("circle",{cx:x,cy:y-52,r:14,fill:"var(--panel2)",stroke:col,"stroke-width":1.5},svg);
+    sv("text",{x,y:y-48,fill:col,"font-size":11,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=sym;
+    sv("text",{x,y:y-74,fill:"var(--muted)","font-size":10,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=label;
+  };
+  gen("B1",40,"NUC-1 880","G","var(--nuc)");gen("B1",120,"COAL-1 400","G","var(--coal)");
+  gen("B2",30,"CCGT-1 600","G","var(--ccgt)");gen("B2",105,"CCGT-2 520","G","var(--ccgt)");
+  gen("B2",178,"GT-1/2 270","G","var(--gt)");
+  gen("B3",60,"WF-A 350","W","var(--wind)");
+  gen("B4",50,"PV-1 300","S","var(--solar)");gen("B4",120,"BESS 100","B","var(--stor)");
+  const loadA=(bus,dx,mw)=>{const[x1,y]=buses[bus];const x=x1+dx;
+    sv("line",{x1:x,x2:x,y1:y,y2:y+30,stroke:"var(--muted)","stroke-width":1.5},svg);
+    sv("path",{d:`M${x-5} ${y+30} L${x+5} ${y+30} L${x} ${y+40} Z`,fill:"var(--muted)"},svg);
+    sv("text",{x,y:y+54,fill:"var(--muted)","font-size":10,"text-anchor":"middle","font-family":"var(--mono)"},svg).textContent=mw+" MW";};
+  loadA("B5",115,"1,120");loadA("B6",90,"705");loadA("B7",90,"1,022");
+}
+function lineload(){
+  const rows=[["L1",74],["L2",92],["L3",52],["L4",60],["L5",58],["L6",55],["L7",24],["L8",30]];
+  $("#lineload").innerHTML=rows.map(([id,p])=>`
+    <div class="brow"><span class="dim">${id}</span>
+      <span class="track"><span class="fill ${p>=90?"warn":""}" style="width:${p}%"></span><span class="lim" style="left:90%"></span></span>
+      <span class="v">${p} %</span></div>`).join("");
+}
+function telem(){
+  const r=[
+    ["NUC-1","gen","880.2","880","24.1","IN SVC","ok"],["COAL-1","gen","399.7","400","23.9","IN SVC","ok"],
+    ["CCGT-1","gen","588.2","590","24.0","IN SVC · AGC","ok"],["CCGT-2","gen","509.7","510","24.0","IN SVC · AGC","ok"],
+    ["GT-1","gen","0.0","0","—","STANDBY","off"],["GT-2","gen","0.0","0","—","STANDBY","off"],
+    ["WF-A","wind","206.4","cap 350","23.8","IN SVC","ok"],["PV-1","solar","118.2","cap 300","23.9","IN SVC","ok"],
+    ["BESS-1","storage","−78.0","chg 80","24.0","CHARGING · SoC 64%","ok"],
+    ["L2","line","368.1","lim 400","400 kV","LOADED 92%","warn"],["B7 RTU","telemetry","—","—","—","HEARTBEAT OK","ok"]];
+  $("#telem").innerHTML=`<tr><th>ELEMENT</th><th>TYPE</th><th class="n">MW MEAS</th><th class="n">SETPOINT / LIMIT</th><th class="n">kV</th><th>STATUS</th></tr>`+
+    r.map(x=>`<tr><td class="num">${x[0]}</td><td class="dim">${x[1]}</td><td class="n num">${x[2]}</td><td class="n num dim">${x[3]}</td><td class="n num dim">${x[4]}</td><td><span class="pill ${x[6]}">${x[5]}</span></td></tr>`).join("");
+}
+
+/* ================= DATA tab ================= */
+function dataChart(){
+  const n=168;const arr=[...Array(n)].map((_,i)=>{
+    const h=i%24,d=Math.floor(i/24);const wk=(d===5||d===6)?0.86:1;
+    return Math.round((1900+900*Math.exp(-(((h-13)/5.2)**2))+260*Math.exp(-(((h-19.3)/1.8)**2)))*wk+(prand(i)-0.5)*80)});
+  const c=baseChart("#dataChart",760,150,1400,3000,{n,ticks:3,xlabels:[0,24,48,72,96,120,144,167],xfmt:i=>"07-"+(20+Math.floor(i/24))});
+  sv("path",{d:pathOf(c,arr),fill:"none",stroke:"var(--ccgt)","stroke-width":1.5},c.svg);
+  hoverLayer(c,n,i=>`<div class="t">2026-07-${20+Math.floor(i/24)} ${String(i%24).padStart(2,"0")}:00Z</div>`+row("var(--ccgt)","load.B5",fmt(arr[i])+" MW"));
+  $("#qtable").innerHTML=`<tr><th>SERIES</th><th>SOURCE</th><th class="n">POINTS</th><th>TAGS</th><th>LAST (UTC)</th></tr>`+[
+    ["load.B5.measured","entso-e","168","market:atlas, dst:eu","07-27 00:00"],
+    ["load.B5.forecast.da","xgboost-v3","168","issue:d-1, p50","07-27 09:00"],
+    ["weather.nwp.temp.B5","noaa-gfs","672","run:00z","07-27 06:00"],
+    ["price.da.system","caiso-oasis","168","synthetic-map","07-26 13:00"]]
+    .map(x=>`<tr><td class="num">${x[0]}</td><td class="dim">${x[1]}</td><td class="n num">${x[2]}</td><td class="dim">${x[3]}</td><td class="num dim">${x[4]}</td></tr>`).join("");
+  $("#ingest").innerHTML=`<tr><th>LOADER</th><th>LAST PULL</th><th class="n">ROWS</th><th>STATE</th></tr>`+[
+    ["ENTSO-E load/gen","02:15Z","8,760","ok"],["EIA fuel/price","02:40Z","1,240","ok"],
+    ["CAISO OASIS","03:05Z","4,318","rate-limited","warn"],["NREL NSRDB","01:10Z","17,520","ok"],["NOAA GFS NWP","06:20Z","2,688","ok"]]
+    .map(x=>`<tr><td>${x[0]}</td><td class="num dim">${x[1]}</td><td class="n num">${x[2]}</td><td><span class="pill ${x[4]||"ok"}">${x[3].toUpperCase()}</span></td></tr>`).join("");
+}
+function flashQuery(){const s=$("#qstat");s.innerHTML='<span class="pill warn">RUNNING…</span>';
+  setTimeout(()=>s.innerHTML='<span class="pill ok">4 SERIES · 12 ms</span>',600)}
+function synthLog(){const l=$("#synth");l.innerHTML+="\n<span class='hl'>gen seed=42…</span> 17,520 rows · filters passed · tag=synthetic ✓";l.scrollTop=l.scrollHeight}
+
+/* ================= FORECAST tab ================= */
+function fcChart(){
+  const c=baseChart("#fcChart",760,240,1600,3200,{n:24,label:"day-ahead load forecast"});
+  const up=fcP50.map((v,i)=>v+bandW[i]),lo=fcP50.map((v,i)=>v-bandW[i]);
+  const band=up.map((v,i)=>(i?"L":"M")+c.x(i).toFixed(1)+" "+c.y(v).toFixed(1)).join(" ")
+    +lo.slice().reverse().map((v,i)=>"L"+c.x(23-i).toFixed(1)+" "+c.y(v).toFixed(1)).join(" ")+"Z";
+  sv("path",{d:band,fill:"var(--fc)",opacity:.16},c.svg);
+  sv("path",{d:pathOf(c,naive),fill:"none",stroke:"var(--faint)","stroke-width":1.5,"stroke-dasharray":"4 4"},c.svg);
+  sv("path",{d:pathOf(c,fcP50),fill:"none",stroke:"var(--fc)","stroke-width":2},c.svg);
+  sv("path",{d:pathOf(c,actual),fill:"none",stroke:"var(--ink)","stroke-width":2},c.svg);
+  sv("circle",{cx:c.x(19),cy:c.y(actual[19]),r:3.5,fill:"var(--ink)"},c.svg);
+  sv("text",{x:c.x(19),y:c.y(actual[19])-9,fill:"var(--ink)","font-size":10,"text-anchor":"middle","font-family":"var(--mono)"},c.svg).textContent="pk "+fmt(actual[19]);
+  hoverLayer(c,24,i=>`<div class="t">H${String(i).padStart(2,"0")}:00</div>`
+    +row("var(--ink)","ACTUAL",fmt(actual[i]))+row("var(--fc)","P50",fmt(fcP50[i]))
+    +row("color-mix(in srgb,var(--fc) 30%,transparent)","P10–P90","±"+bandW[i])+row("var(--faint)","NAÏVE",fmt(naive[i])));
+}
+function btChart(){
+  const model=[3.4,3.1,2.9,3.3,2.7,2.6,2.9,2.8],nv=[6.6,6.5,6.2,6.9,6.3,6.1,6.4,6.4];
+  const c=baseChart("#btChart",420,220,0,8,{n:8,band:true,xlabels:[0,1,2,3,4,5,6,7],xfmt:i=>"F"+(i+1),pad:{l:26}});
+  const bw=c.pw/8*0.30;
+  model.forEach((v,i)=>{
+    sv("rect",{x:c.x(i)-bw-1,y:c.y(v),width:bw,height:c.y(0)-c.y(v),fill:"var(--fc)",rx:2},c.svg);
+    sv("rect",{x:c.x(i)+1,y:c.y(nv[i]),width:bw,height:c.y(0)-c.y(nv[i]),fill:"var(--faint)",rx:2},c.svg);
+    sv("text",{x:c.x(i)-bw/2,y:c.y(v)-4,fill:"var(--muted)","font-size":9,"text-anchor":"middle","font-family":"var(--mono)"},c.svg).textContent=v.toFixed(1);});
+  hoverLayer(c,8,i=>`<div class="t">FOLD ${i+1}</div>`+row("var(--fc)","MODEL",model[i].toFixed(1)+" %")+row("var(--faint)","NAÏVE",nv[i].toFixed(1)+" %"));
+}
+function flashFc(){/* mock */}
+
+/* ================= UC tab ================= */
+function ucChart(){
+  const c=baseChart("#ucChart",760,260,0,3200,{n:24,label:"dispatch stack"});
+  let base=H.map(()=>0);
+  FUELS.forEach(f=>{
+    const top=base.map((b,i)=>b+f.a[i]);
+    let d=top.map((v,i)=>(i?"L":"M")+c.x(i).toFixed(1)+" "+c.y(v).toFixed(1)).join(" ");
+    d+=base.slice().reverse().map((v,i)=>"L"+c.x(23-i).toFixed(1)+" "+c.y(v).toFixed(1)).join(" ")+"Z";
+    sv("path",{d,fill:f.c,stroke:"var(--panel)","stroke-width":1.5},c.svg);
+    base=top;});
+  sv("path",{d:pathOf(c,load),fill:"none",stroke:"var(--ink)","stroke-width":1.5,"stroke-dasharray":"2 3"},c.svg);
+  hoverLayer(c,24,i=>{
+    let h=`<div class="t">H${String(i).padStart(2,"0")}:00 — LOAD ${fmt(load[i])} MW${chg[i]?` · BESS CHG −${chg[i]}`:""}</div>`;
+    [...FUELS].reverse().forEach(f=>{if(f.a[i])h+=row(f.c,f.k,fmt(f.a[i]))});return h});
+  $("#ucLegend").innerHTML=FUELS.map(f=>`<span><i style="background:${f.c}"></i>${f.k}</span>`).join("")
+    +`<span class="ln"><i style="background:var(--ink)"></i>LOAD</span>`;
+  const l=baseChart("#lmbChart",760,120,0,120,{n:24,ticks:3});
+  sv("path",{d:pathOf(l,lambda),fill:"none",stroke:"var(--warn)","stroke-width":2},l.svg);
+  sv("circle",{cx:l.x(19),cy:l.y(96),r:3.5,fill:"var(--warn)"},l.svg);
+  sv("text",{x:l.x(19),y:l.y(96)-8,fill:"var(--warn)","font-size":10,"text-anchor":"middle","font-family":"var(--mono)"},l.svg).textContent="96.0";
+  hoverLayer(l,24,i=>`<div class="t">H${String(i).padStart(2,"0")}:00</div>`+row("var(--warn)","λ","$"+lambda[i].toFixed(1)));
+}
+function ucTable(){
+  let h=`<table><tr><th>H</th>${FUELS.map(f=>`<th class="n">${f.k}</th>`).join("")}<th class="n">LOAD</th><th class="n">λ</th></tr>`;
+  H.forEach(i=>{h+=`<tr><td class="num dim">${String(i).padStart(2,"0")}</td>${FUELS.map(f=>`<td class="n num">${f.a[i]||"·"}</td>`).join("")}<td class="n num">${fmt(load[i])}</td><td class="n num">${lambda[i].toFixed(1)}</td></tr>`});
+  $("#ucTable").innerHTML=h+"</table>";
+}
+function cmgrid(){
+  const units=[["NUC-1",H.map(()=>1)],["COAL-1",H.map(()=>1)],
+    ["CCGT-1",H.map(()=>1)],["CCGT-2",H.map(h=>ccgt2[h]>0?1:0)],
+    ["GT-1",gt1.map(v=>v>0?1:0)],["GT-2",gt2.map(v=>v>0?1:0)],["BESS-1 dis",dis.map(v=>v>0?1:0)]];
+  const g=$("#cmgrid");g.innerHTML="";
+  g.insertAdjacentHTML("beforeend",`<span class="lbl"></span>${H.map(h=>`<span class="hh">${h%3===0?String(h).padStart(2,"0"):""}</span>`).join("")}<span class="hh">HRS</span>`);
+  units.forEach(([n,arr])=>{
+    let cells=`<span class="lbl">${n}</span>`;
+    arr.forEach((v,h)=>{const st=v&&(h===0?0:!arr[h-1]);
+      cells+=`<span class="cm ${v?(st?"st":"on"):""}" data-t="${n} H${String(h).padStart(2,"0")} — ${v?(st?"START":"ON"):"OFF"}"></span>`});
+    cells+=`<span class="tot">${arr.reduce((a,b)=>a+b,0)}</span>`;
+    g.insertAdjacentHTML("beforeend",cells);});
+  g.addEventListener("mousemove",e=>{const t=e.target.dataset?.t;t?showTip(`<div class="t">${t}</div>`,e.clientX,e.clientY):hideTip()});
+  g.addEventListener("mouseleave",hideTip);
+}
+function constr(){
+  $("#constr").innerHTML=`<tr><th>CONSTRAINT</th><th>WHERE</th><th>STATE</th></tr>`+[
+    ["Power balance","all 24 h",'<span class="pill ok">FEASIBLE</span>'],
+    ["Spin reserve ≥ N-1 + σ","h19",'<span class="pill warn">SHORT −8 MW (soft)</span>'],
+    ["Ramp up CCGT-1","h17→h18",'<span class="pill ok">BINDING</span>'],
+    ["Min-up GT-1 (3 h)","h17–21",'<span class="pill ok">BINDING</span>'],
+    ["BESS SoC end-of-horizon","h23",'<span class="pill ok">MET 50%</span>'],
+    ["Load shed @ VOLL","—",'<span class="pill ok">0.0 MWh</span>']]
+    .map(x=>`<tr><td>${x[0]}</td><td class="dim num">${x[1]}</td><td>${x[2]}</td></tr>`).join("");
+}
+const UCLOG=[
+ "highs 1.7.2 — MILP  8 units × 24 h  rows 2,412  cols 1,896 (bin 576)",
+ "presolve: 1,204 rows, 1,102 cols removed",
+ "root LP relaxation: obj 1.2731e6  (0.09 s)",
+ "B&B: 214 nodes · 12 cuts (MIR, flow-cover)",
+ "gap 0.42% → 0.11% → 0.08%  <span class='hl'>< tol 0.10%</span>",
+ "<span class='hl'>OPTIMAL  obj $1,283,940  ·  1.24 s</span>",
+ "fix binaries → dispatch LP re-solve → λ from balance duals ✓"];
+function uclog(instant){
+  const el=$("#uclog");el.innerHTML="";
+  if(instant){el.innerHTML=UCLOG.join("\n");return}
+  let i=0;const t=setInterval(()=>{el.innerHTML+=UCLOG[i]+"\n";el.scrollTop=el.scrollHeight;if(++i>=UCLOG.length)clearInterval(t)},260);
+}
+$("#runUc").addEventListener("click",()=>uclog(false));
+$("#ucTblBtn").addEventListener("click",()=>{
+  const t=$("#ucTable"),w=$("#ucChartWrap"),b=$("#ucTblBtn");
+  const show=t.style.display==="none";t.style.display=show?"block":"none";w.style.display=show?"none":"block";
+  b.textContent=show?"CHART":"TABLE";});
+
+/* ================= SCENARIOS ================= */
+const SCEN=[
+ ["BASE","—",1.284,0.0,0,18.4,45.1],
+ ["NUC-1 OUT (N-1)","outage",1.612,4.2,3,24.1,78.4],
+ ["GAS +50%","fuel",1.451,0.0,0,21.0,58.9],
+ ["WIND ×2","renewables",1.116,0.0,1,14.2,38.3],
+ ["HEAT WAVE +8%","load",1.402,0.8,2,19.9,55.2]];
+function scen(){
+  $("#scenTable").innerHTML=`<tr><th>SCENARIO</th><th>LEVER</th><th class="n">COST $M</th><th class="n">EUE MWh @VOLL</th><th class="n">RSV SHORT h</th><th class="n">CO₂ kt</th><th class="n">λ AVG</th><th></th></tr>`+
+    SCEN.map((s,i)=>`<tr><td class="num">${s[0]}</td><td class="dim">${s[1]}</td><td class="n num">${s[2].toFixed(3)}</td><td class="n num ${s[3]>0?"":"dim"}">${s[3].toFixed(1)}</td><td class="n num ${s[4]>0?"":"dim"}">${s[4]}</td><td class="n num">${s[5].toFixed(1)}</td><td class="n num">${s[6].toFixed(1)}</td><td>${i===0?'<span class="pill ok">REF</span>':`<span class="pill ${s[3]>0||s[4]>1?"warn":"off"}">${s[3]>0?"EUE":"OK"}</span>`}</td></tr>`).join("");
+  const bar=(sel,idx,max,unit,dec)=>{
+    const c=baseChart(sel,700,190,0,max,{n:SCEN.length,band:true,ticks:2,dec:0,pad:{l:36,t:16},xlabels:[0,1,2,3,4],xfmt:i=>["BASE","N-1","GAS+","WND2","HEAT"][i]});
+    const bw=c.pw/SCEN.length*0.5;
+    SCEN.forEach((s,i)=>{const v=s[idx];
+      sv("rect",{x:c.x(i)-bw/2,y:c.y(v),width:bw,height:c.y(0)-c.y(v),fill:i===0?"var(--ink)":"var(--ccgt)",rx:2,opacity:i===0?.9:1},c.svg);
+      sv("text",{x:c.x(i),y:c.y(v)-5,fill:"var(--muted)","font-size":10,"text-anchor":"middle","font-family":"var(--mono)"},c.svg).textContent=v.toFixed(dec);});
+    hoverLayer(c,SCEN.length,i=>`<div class="t">${SCEN[i][0]}</div>`+row(i===0?"var(--ink)":"var(--ccgt)",unit,SCEN[i][idx].toFixed(dec)));
+  };
+  bar("#scCost",2,1.8,"COST $M",3);bar("#scEmis",5,26,"CO₂ kt",1);
+}
+function flashScen(){const s=$("#scenStat");s.textContent="running 135 solves…";
+  setTimeout(()=>s.textContent="last batch: 5 scenarios × 27 days · 135 UC solves · 41 s",900)}
+
+/* ================= CONTROL ================= */
+function freqChart(){
+  const n=120;const f=[...Array(n)].map((_,i)=>50+0.012*Math.sin(i/7)+ (prand(i)-0.5)*0.02);
+  const c=baseChart("#freqChart",760,180,49.94,50.06,{n,ticks:4,dec:2,xlabels:[0,30,60,90,119],xfmt:i=>(-10+i/12).toFixed(0)+"m"});
+  sv("line",{x1:c.P.l,x2:c.W-c.P.r,y1:c.y(50),y2:c.y(50),stroke:"var(--faint)","stroke-dasharray":"3 4"},c.svg);
+  sv("path",{d:pathOf(c,f),fill:"none",stroke:"var(--ok)","stroke-width":1.5},c.svg);
+  hoverLayer(c,n,i=>`<div class="t">t ${(-10+i/12).toFixed(1)} min</div>`+row("var(--ok)","FREQ",f[i].toFixed(3)+" Hz"));
+}
+
+/* ================= shell ================= */
+const TABMAP={grid:"tab-grid",data:"tab-data",forecast:"tab-fc",uc:"tab-uc",scen:"tab-scen",ctl:"tab-ctl"};
+$("#tabs").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on",x===b));
+  document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+  $("#"+TABMAP[b.dataset.tab]).classList.add("on");hideTip();});
+$("#loginForm").addEventListener("submit",e=>{e.preventDefault();
+  $("#login").style.display="none";$("#app").classList.add("on");});
+function tick(){const d=new Date();
+  $("#clock").textContent=d.toISOString().slice(0,19).replace("T"," ")+"Z · LOC "+d.toTimeString().slice(0,8);}
+setInterval(tick,1000);tick();
+
+/* build everything once */
+oneline();lineload();telem();dataChart();fcChart();btChart();
+ucChart();ucTable();cmgrid();constr();uclog(true);scen();freqChart();
+</script>
