@@ -5,29 +5,29 @@
 Supersedes the earlier "Claude plans, Cursor writes with `gpt-5.3-codex-high`"
 rule. Applies to every Orientom-Inc and finance-quantum repo.
 
-**Plan with Fable models**, when available.
+**Plan with Fable models**, and plan in **detail** — the plan is the deliverable
+Fable is there for, not a sketch handed off half-finished.
 
-**Review with Fable models**, when available. Reviews are brutal and
-adversarial, not a rubber stamp.
+**Review with Fable models.** Reviews are brutal and adversarial, not a rubber
+stamp.
 
-**Write the code** with the model matched to the task:
+**Write the code by climbing this ladder in order.** The goal is to spend the
+**Cursor token quotas** — that is the reason for the ordering, not a side effect
+of it. Start at rung 1 and only go up when the task genuinely needs it.
 
-| Task | Who writes it |
-|---|---|
-| simple, or very generic | a Cursor agent on the default Grok models |
-| anything more complex | a **Claude Opus subagent** |
+| rung | who writes it | when |
+|---|---|---|
+| 1 | a **Cursor agent on the default Grok models** | simple, or very generic |
+| 2 | a **Cursor agent on the Opus model** | more complex than rung 1 can carry |
+| 3 | a **Claude agent / subagent on Claude Opus** | complex enough that rung 2 cannot carry it either, or Cursor is unavailable |
 
-Renaud, later on 2026-09-23, revising the same day's first version: complex work
-goes to a Claude Opus subagent, **not** to the Opus model inside Cursor. Cursor
-keeps the simple and generic end of the range. This also settles the open
-question of what replaces `gpt-5.3-codex-high` while it is quota-refused — for
-simple work, the default Grok models; for anything else, Opus on the Claude side.
+Rung 3 is the last resort, not the default: going straight to a Claude Opus
+subagent for work a Cursor agent could do burns the wrong budget.
 
 **Escalate on repeated bad output, and say that you did** (Renaud, 2026-09-23).
-If a simpler model produces poor work repeatedly on a task, stop re-prompting it
-and move the task to a better model. Do not treat the table above as a ceiling —
-it is the starting point, not a constraint to defend. Every switch is reported:
-which model, which task, and what it was producing that triggered the move.
+If the model at your current rung produces poor work repeatedly, stop
+re-prompting it and move up a rung. Every switch is reported: which model, which
+task, and what it was producing that triggered the move.
 
 **Commit and push everywhere.** CI green before every commit. Save state to the
 repo rather than leaving it in a conversation.
@@ -38,7 +38,8 @@ repo rather than leaving it in a conversation.
   `-p --force --trust`. Without those flags a workspace-trust prompt comes
   back looking exactly like a quota refusal — that false reading was reported
   twice on 2026-09-23. Measured that day: `grok-4.7-medium` and `composer-2.5`
-  fine, `gpt-5.3-codex-high` refused until 10/4/2026.
+  fine, `gpt-5.3-codex-high` refused until 10/4/2026. A single model being
+  capped does not empty rung 1 or rung 2; probe the others before climbing.
 - **`claude-fable-5-*` must never be used in Cursor** — flagged NO ZDR. Fable
   is for planning and review on the Claude side, not inside Cursor.
 - **`aria-quantum-language-oss-public` is never pushed, fetched, rebased or
