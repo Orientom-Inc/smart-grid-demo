@@ -1,0 +1,12 @@
+# CodeGraph index (machine-local)
+.codegraph/
+
+# Claude Code local/volatile state (settings.json, skills, agents, commands stay tracked)
+.claude/worktrees/
+.claude/settings.local.json
+.claude/*.lock
+.claude/*.log
+.claude/cache/
+
+# OS / editor
+.DS_Store
