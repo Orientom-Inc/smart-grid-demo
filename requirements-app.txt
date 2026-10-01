@@ -1,7 +1,0 @@
-# Streamlit Community Cloud installs this one. It does NOT need pyomo or
-# highspy: the client only reads the API (or the committed cache slice).
-numpy>=1.26,<3
-pandas>=2.0
-streamlit>=1.33
-plotly>=5.20
-httpx>=0.27
