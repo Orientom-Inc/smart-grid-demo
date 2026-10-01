@@ -1,0 +1,9 @@
+# Core: validated science (src/qmems) + cache builder (src/qmems_cache).
+# The builder deliberately adds NO dependencies beyond these, so CI can
+# regenerate every served number on synthetic data alone.
+numpy>=1.26,<3
+scipy>=1.11
+pandas>=2.0
+matplotlib>=3.8
+pyomo>=6.7
+highspy>=1.7
