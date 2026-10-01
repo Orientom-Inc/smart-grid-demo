@@ -224,28 +224,6 @@ Exact installation steps and dependencies are documented in the repository READM
 
 ---
 
-## Repository Structure
-
-A typical public layout is:
-
-```text
-QGrid-EMS/
-├── app/                    # dashboard assets
-├── cache/                  # prepared benchmark results
-├── docs/                   # documentation and figures
-├── src/
-│   ├── qmems/              # scientific core
-│   ├── qmems_api/          # API service
-│   └── qmems_cache/        # experiment/cache generation
-├── tests/                  # validation and API tests
-├── QMEMS_DASHBOARD.html
-├── RUN_DEMO.py
-├── README.md
-├── Dockerfile
-└── requirements*.txt
-```
-
----
 
 ## Related Publications and References
 
