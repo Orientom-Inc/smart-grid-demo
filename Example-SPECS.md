@@ -1,92 +1,282 @@
+# QMEMS — Quantum Microgrid Energy Management System
 
-OVERALL APP
+## Overview
 
-this is a typescript/React full stack SPA app for smart grid operations: unit commitment / economic dispatch, ML demand & renewable forecasting, microgrid energy management
-RULE: all analytics/optimization/ML are Rust/C++/maybe golang, all gui stuff is typescript
-classical solvers FIRST (MILP unit commitment, XGBoost/torch forecast), quantum LATER (TBC)
+QMEMS is a hybrid quantum-classical microgrid energy-management research platform and interactive dashboard.
 
-two problems anchor the build (cf. Tightiz smart-grid line — see refs):
- - Unit Commitment Problem (UCP): which generators on/off + how much MW each, hour by hour, at least cost, respecting the physical constraints
- - ML load/renewable forecast: give the UCP a good forecast instead of a naive one
+It is designed to compare classical optimization, rule-based control, reinforcement learning, quantum-inspired optimization, and quantum methods on the same microgrid dispatch problem under a common evaluation pipeline.
 
-Screens:
+The platform focuses on transparent comparison rather than claims of generic quantum advantage. Results are evaluated with the same data, physical constraints, and economic metrics whenever possible.
 
-- grid tab [ the network model: buses, lines, generators, loads, storage, renewables ] + live telemetry (SCADA-style), one-line diagram, limits/health
-- data tab [ load / weather / generation / price time series ] — query by time/site/signal/source/tags, ingest loaders, synthetic generator
-- forecast tab — ML day-ahead + intraday load & renewable forecast; predicted vs actual, error bands, skill vs a naive baseline, walk-forward backtest; pick model (XGBoost vs torch temporal net)
-- unit commitment / dispatch tab — THE core screen: pick a day + forecast, run the UCP, see commitment schedule (on/off grid), dispatch stack, reserves, system marginal price, constraint / shortfall report; classical solve now, quantum toggle later (TBC)
-- scenarios / back test tab — build a scenario (load level, generator outage / N-1, fuel price, renewable penetration), run UC/dispatch over historical or synthetic days, multi-scenario; graphs (cost, unserved energy @ VOLL, reserve shortfall, emissions)
-- signals / control tab [ DRL microgrid EMS + frequency control incl. EVs/V2G — built later, cf. Tightiz DDPG/SAC line ]
+## Developer and Research Context
 
-Aesthetics: look at grid control-room / market tooling (EMS-SCADA consoles, PSS/E, PLEXOS) — dark, dense, professional; one-line diagram + blotter-first; monospace tabular numerics
-add a login/pwd too
+**QMEMS is developed by Dr. Lilia Tightiz, Assistant Professor, Dept of Computer Engineering, Sejong University, Seoul, Republic of Korea.**
 
-Analytics
+The project is part of a broader research direction in smart-grid optimization, microgrid energy management, reinforcement learning, quantum computing, and quantum machine learning for energy systems. QMEMS is intended as a public research and demonstration platform that connects these topics through a common microgrid-energy-management benchmark.
 
-nothing here is vendored — every analytics binary is NEW / to-build (unlike the finance app which had a pricer already). the only pre-existing runtimes we lean on are the quantum ones (see runtimes below)
-- classical FIRST: UC as a MILP; forecast with XGBoost / torch — this is the working baseline
-- quantum LATER (TBC): a TOY QUBO demonstrator only (see below) — not a solver that competes with the MILP
+Research profile: [Google Scholar — Lilia Tightiz](https://scholar.google.com/citations?hl=en&user=6KPI75UAAAAJ&view_op=list_works&sortby=pubdate)
 
-Unit commitment / dispatch:
-- UCP = MILP over a 24h (rolling) horizon: binary on/off (commit) + startup/shutdown binaries + continuous MW (dispatch)
-- min total cost = production/fuel cost (piecewise-lin) + no-load·committed + startup + shutdown, s.t.
-  - power balance each period (generation + import + storage discharge = load + storage charge) — lossless under copperplate; losses come with AC later
-  - gen min/max MW, min-up / min-down time, ramp up/down
-  - spinning + non-spinning + regulation reserve requirements; the spinning req is set by the N-1 largest-contingency rule; reserve is soft (shortfall slack, penalized)
-  - load-shed slack penalized by VOLL (so "unserved energy" is a real number, not infeasibility)
-  - storage SoC balance with charge/discharge efficiency, power + SoC limits, no simultaneous charge+discharge, end-of-horizon SoC
-  - renewable availability caps from the forecast; optional emissions term / cap; optional network (DC-OPF line limits) + N-1
-- classical engine: MILP via HiGHS (open C++, default); OR-Tools / CBC alt; Gurobi optional if licensed
-- prices: fix the commitment binaries, re-solve the dispatch LP, read the power-balance dual → single system λ under copperplate; LMPs only once DC-OPF network limits are on
-- rolling horizon carries state between windows (commitment status, min-up/down counters, initial SoC)
-- formal formulation belongs in the PLAN, not here
+---
 
-quantum path (TBC, toy): the quantum solver/optimizer lives in ../quantum-optimizer/ (empty for now — rest TBD). penalty-reformulate a SMALL UC (≤ ~5 units, ≤ ~4 periods, coarse 2–3-bit dispatch, relaxed min-up/down, no network) into a QUBO — state the qubit budget, it explodes fast
- - QAOA on the aria-quantum runtime (gate model), cross-checked classically by a QUBO solver (MQLib / simulated annealing) — all under ../quantum-optimizer/
- - decode → repair to a feasible dispatch → re-cost, THEN compare cost vs the MILP optimum
+## Main Goals
 
-Forecast:
-- inputs: historical load, calendar (hour/day/holiday), FORECAST weather (NWP — temp/irradiance/wind, known at issue time, NOT realized weather → no leakage), lags, site metadata
-- classical models: XGBoost / gradient boosting for tabular day-ahead load; torch (LSTM / temporal-conv / small transformer) for sequences — libtorch/tch
-- targets/metrics: point (MAPE/MAE/RMSE) + quantile (pinball / CRPS + interval coverage), skill vs seasonal-naive baseline; walk-forward / expanding-window backtest, no shuffling
-- solar/wind forecast from NWP weather, capacity-normalized (clear-sky index / rated capacity)
-- the deterministic MILP eats the POINT forecast; the forecast uncertainty (σ) SIZES the reserve requirement — that's what the intervals are for
-- QML forecaster kept for later (TBC)
+QMEMS is intended to provide a reproducible environment for studying questions such as:
 
-N.B. keep full AC-OPF (voltages, reactive, losses) for later — DC-OPF / copperplate to start — but we did not forget
+- How do classical and quantum-oriented approaches compare for microgrid battery dispatch?
+- What is the cost difference between exact references and approximate methods?
+- Are the produced schedules physically feasible?
+- How do learning-based controllers compare with optimization-based controllers?
+- When a quantum backend is used, what type of execution actually occurred?
 
-Data:
+The project keeps classical baselines available so quantum and quantum-inspired results can be interpreted against a clear reference.
 
-grid time-series + telemetry store [ Grid Telemetry & Market Service ]
-- json docs / time-series indexed by time · site/bus/gen · signal (load/gen/price/weather/SoC) · source · [ measured / forecast / setpoint ] · custom tags
-- store in UTC, carry market local time + DST policy explicitly (spring-forward drops an hour, fall-back doubles one — kills naive as-of queries)
-- use redpanda for the event log; materialize point-in-time / as-of snapshots to DuckDB/Parquet for fast historical reads (SCADA telemetry is higher volume than market data)
-- real time or sort of but not HFT: two time-scales — day-ahead UC runs once (hourly periods); a real-time economic-dispatch / AGC loop (~1s) rides on top of the fixed commitment
-- grid emulator (analogue of the finance OMS emulator): applies the commitment schedule, runs the ~1s dispatch/AGC loop against synthetic telemetry, emits SETPOINTS / AGC signals (not "fills") and streams measured response back
+---
 
-try to load freely accessible data [ open energy datasets — ENTSO-E load & generation, EIA, a public ISO (CAISO/PJM/MISO) load & price, NREL solar/wind, NOAA/open weather; careful about rate limits ]
+## Microgrid Model
 
-Synthetic data:
+The current QMEMS demo represents a microgrid with:
 
-from public datasets, build parametrized load profiles (daily/weekly/seasonal + weather sensitivity + noise), solar/wind profiles, a synthetic generator fleet (cost curves, min-up/down, ramp, startup) + a small test network (buses/lines WITH reactances + thermal limits — DC-OPF needs them)
-add feasibility filters (non-negative load, capacity-consistent, reserve-feasible)
-use the little real data we have to generate plausible load/renewable/fleet data
-push to data store with tag 'synthetic'
-have datasets saved to repo (split into smaller files than ~ 30 MB )
+- electrical load
+- photovoltaic generation
+- battery energy storage
+- grid import and export
+- time-varying electricity tariffs
 
-----
-Packaging - local run FIRST (Mac on Mac machine, Metal supported — note MPS/Metal does not work in-container, run those on the host), Docker/containers; a Kubernetes deployment eventually
-new binaries (HiGHS, XGBoost, tch, aria-quantum) — mind the target arch we build/ship to K8s (arm64 vs amd64)
-be smart with the deployment scripts, stay simple, document K8s install etc. in SIMPLE words
+At each time step, the controller determines how energy should flow between the load, PV generation, battery, and utility grid.
 
-----
-Runtimes (pre-existing, we lean on these):
-- quantum solver/optimizer: ../quantum-optimizer/ (the QUBO reformulation + QAOA/annealing wiring lives here — TBD)
-- quantum runtime: ../aria-quantum-language-oss-public — pure-Rust quantum DSL runtime, no libtorch needed, exports OPENQASM 2.0 / JSON / Lean 4, CPU/MPS/GPU backends, trains variational/QML angles (gate model → QAOA/VQE). plus C++/Rust Qiskit (../qiskit-aer) as a cross-check engine. NOTE: annealing is a different paradigm — we have no annealing hardware in-stack, so "annealing" = classical simulated annealing only
-- ML: XGBoost (C++), torch / libtorch (tch in Rust)
-- optimization: HiGHS / OR-Tools / CBC (C++), Gurobi optional
-- forecasters trained OFFLINE (batch); the gateway calls an inference binary per request — training is not a live gateway call
+The optimization objective is based on electricity cost and may include a battery-throughput penalty.
 
-refs (Lilia Tightiz, guidance for basic smart-grid scope): survey on smart micro-grid management + modern wireless (Energies 2020); IoT protocols for smart grid comms (Energies 2020); interoperable comms for grid frequency regulation from microgrids (Sensors 2021); data-driven microgrid management + active distribution network (Energies 2022); DRL microgrid EMS (DDPG/SAC) + intelligent frequency control with EVs (World EV Journal 2024). N.B. UC + forecast touch little of this directly — the DRL/EMS/frequency/EV/comms scope is the later signals/control tab, not v1
+The dispatch must respect the main physical constraints, including:
 
-PLAN and then let us think about it, provide gui screen mockups
+- energy balance
+- battery state-of-charge limits
+- charging and discharging limits
+- battery efficiency
+- import/export limits
+- initial battery state
+
+---
+
+## Methods
+
+QMEMS supports several method families through a common evaluation format.
+
+### Classical baselines
+
+- no-battery reference
+- rule-based battery control
+- MILP-based dispatch optimization
+
+### Reinforcement learning
+
+- tabular Q-learning
+- experimental quantum reinforcement learning with a variational quantum circuit
+
+### QUBO and quantum-oriented optimization
+
+- exact discrete QUBO reference
+- simulated annealing
+- QAOA simulation on tractable problem instances
+- optional hardware-backed execution through supported quantum services
+
+Simulated annealing is treated as **quantum-inspired**, not as quantum-hardware execution.
+
+---
+
+## QUBO Path
+
+QMEMS includes a QUBO representation of the battery-dispatch problem for quantum-oriented experiments.
+
+The continuous dispatch problem is discretized into a finite state representation. The resulting QUBO can then be evaluated with exact classical references, heuristic solvers, simulators, or supported quantum backends.
+
+The project compares QUBO solutions with classical references and reports the measured gap when an exact comparison is available.
+
+Small problem instances are used for validation before larger experiments are attempted.
+
+---
+
+## Quantum Provenance
+
+QMEMS distinguishes between different execution types so that dashboard labels do not overstate quantum use.
+
+A result can be classified as:
+
+- classical
+- quantum-inspired
+- quantum simulation
+- hardware-backed quantum execution
+
+A result is marked as hardware-backed only when the submitted problem is actually processed through a supported quantum-hardware path.
+
+Where applicable, QMEMS records information such as backend type, formulation size, runtime metadata, and comparison with the available classical or exact reference.
+
+---
+
+## Data
+
+QMEMS is designed around EMS-style time-series data.
+
+Typical inputs include:
+
+- timestamps
+- site identifiers
+- electrical consumption
+- PV generation
+- load forecasts
+- PV forecasts
+- battery parameters
+- electricity buy/sell tariffs
+
+A schema-compatible synthetic-data generator is included so the demo can be tested without requiring access to a private dataset.
+
+---
+
+## Architecture
+
+QMEMS is separated into four main parts.
+
+### Scientific core
+
+Contains the microgrid environment, optimization models, QUBO formulation, reinforcement-learning components, feasibility checks, and validation utilities.
+
+### Precomputation layer
+
+Runs experiments offline and stores result artifacts for reproducible comparison.
+
+### API layer
+
+Provides read-only access to prepared benchmark results for the dashboard.
+
+### Dashboard
+
+Provides an interactive interface for method comparison, energy-flow visualization, dispatch inspection, cost analysis, and quantum-provenance reporting.
+
+The dashboard is intended for research demonstration and analysis rather than autonomous real-world grid control.
+
+---
+
+## Dashboard Features
+
+The public dashboard can present:
+
+- site and day selection
+- method comparison
+- total operating cost
+- savings relative to a baseline
+- feasibility status
+- battery state of charge
+- load and PV profiles
+- grid import/export
+- battery charging/discharging
+- cumulative cost through the day
+- QUBO / quantum metadata
+- backend and execution classification
+
+Physical validity and economic performance are shown separately. A feasible result is not automatically an economically strong result.
+
+---
+
+## Evaluation
+
+Methods are compared with a common set of metrics where applicable, including:
+
+- total operating cost
+- savings relative to the reference baseline
+- optimality gap
+- physical feasibility
+- battery usage
+- runtime
+- quantum execution metadata
+
+QMEMS is intended to preserve negative or null results rather than hiding them. This makes the repository useful as a research benchmark rather than only as a demonstration of favorable cases.
+
+---
+
+## Reproducibility
+
+Generated experiments should preserve the information required to reproduce or audit a result, such as:
+
+- random seed
+- dataset/site/day identifiers
+- method name
+- solver or backend
+- version information
+- result metadata
+
+Precomputed results can be stored with integrity information so the dashboard can be checked against the artifacts generated by the experimental pipeline.
+
+---
+
+## Running the Demo
+
+The repository supports a lightweight demo workflow and a full development workflow.
+
+Typical entry points include:
+
+```bash
+python INSTALL.py
+python RUN_DEMO.py
+```
+
+A standalone dashboard may also be provided for viewing prepared results without requiring a live quantum service.
+
+Exact installation steps and dependencies are documented in the repository README.
+
+---
+
+## Repository Structure
+
+A typical public layout is:
+
+```text
+QGrid-EMS/
+├── app/                    # dashboard assets
+├── cache/                  # prepared benchmark results
+├── docs/                   # documentation and figures
+├── src/
+│   ├── qmems/              # scientific core
+│   ├── qmems_api/          # API service
+│   └── qmems_cache/        # experiment/cache generation
+├── tests/                  # validation and API tests
+├── QMEMS_DASHBOARD.html
+├── RUN_DEMO.py
+├── README.md
+├── Dockerfile
+└── requirements*.txt
+```
+
+---
+
+## Related Publications and References
+
+The following selected publications by the developer provide research background for the smart-grid, microgrid, reinforcement-learning, and quantum-energy-management directions represented in QMEMS. They are listed as related research references and do not imply that every repository component is a direct implementation of a specific paper.
+
+1. L. Tightiz, et al. **“Quantum-resilient blockchain and federated reinforcement learning for adaptive electricity pricing in South Korea,”** *Sustainable Energy, Grids and Networks*, vol. 46, 10232, 2026. https://doi.org/10.1016/j.segan.2026.102232
+
+2. L. Tightiz, et al., **“A Review on a Data-Driven Microgrid Management System Integrating an Active Distribution Network: Challenges, Issues, and New Trends,”** *Energies*, vol. 15, no. 22, 8739, 2022. https://doi.org/10.3390/en15228739
+
+3. L. Tightiz, et al. **“Novel deep deterministic policy gradient technique for automated micro-grid energy management in rural and islanded areas,”** *Alexandria Engineering Journal*, vol. 82, pp. 145–153, 2023. https://doi.org/10.1016/j.aej.2023.09.066
+
+4. L. Tightiz, et al. **“Quantum Learning in Modern Power Systems: A Critical Appraisal of Current Evidence and Deployment Barriers,”** *Journal of Modern Power Systems and Clean Energy*, 2026. https://doi.org/10.35833/MPCE.2026.000496
+
+5. L. Tightiz, et al. **“Energy-efficient quantum-spiking multi-agent reinforcement learning for adaptive energy management in microgrid networks,”** *International Journal of Electrical Power & Energy Systems*, vol. 179, 112020, 2026. https://doi.org/10.1016/j.ijepes.2026.112020
+
+For the complete and most recent publication list, see the developer’s [Google Scholar profile](https://scholar.google.com/citations?hl=en&user=6KPI75UAAAAJ&view_op=list_works&sortby=pubdate).
+
+---
+
+## Security and Public Use
+
+QMEMS is intended for research and demonstration use.
+
+Do not commit sensitive information such as API keys, passwords, access tokens, private service URLs, confidential datasets, or organization-specific infrastructure details.
+
+Credentials for external quantum services should be provided through environment variables or other secure local configuration mechanisms.
+
+## Scope
+
+QMEMS is a research platform for hybrid quantum-classical energy-management experiments.
+
+It does not claim that quantum methods universally outperform classical optimization. Instead, it provides a structured way to compare methods under the same microgrid model and report both strengths and limitations.
+
+Future public releases may extend the platform with additional datasets, controllers, quantum backends, and energy-management scenarios while preserving the same comparison and provenance principles.
