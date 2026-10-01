@@ -1,4 +1,0 @@
--r requirements.txt
-pennylane>=0.36
-pennylane-lightning[gpu]>=0.36
-torch>=2.2
